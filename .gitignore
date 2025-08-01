@@ -1,1 +1,109 @@
 *.pdf
+
+# -----------------------
+# Go
+# -----------------------
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Vendor directory (si no vendorizas explícito)
+vendor/
+
+# Go modules
+go.sum
+
+# -----------------------
+# Python
+# -----------------------
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*,cover
+
+# Streamlit artifacts
+.streamlit/
+
+# -----------------------
+# General
+# -----------------------
+# Local config files
+*.env
+*.local
+.env.*
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*.bak
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Docker
+docker-compose.override.yml
+docker-compose.*.yml
+
+# -----------------------
+# Documentation / Build
+# -----------------------
+# Build artifacts
+docs/_build/
+docs/build/
+
+# Package artifacts
+*.egg
+*.egg-info/
+dist/
+build/
