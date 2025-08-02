@@ -4,7 +4,38 @@ import (
     "encoding/binary"
     "hash/crc32"
     "fmt"
+
 )
+
+func BytesToBits (data []byte) []byte {
+    bits := make([]byte, len(data)*8)
+    for i, b := range data {
+        for j := 0; j < 8; j++ {
+            bits[i*8+j] = (b >> (7 - j)) & 1
+        }
+    }
+    return bits
+}
+
+func BitsToBytes(bits []byte) []byte {
+    if len(bits) == 0 {
+        return []byte{}
+    }
+    // Asegurarse de que la longitud es múltiplo de 8
+    if len(bits)%8 != 0 {
+        padding := make([]byte, 8-len(bits)%8)
+        bits = append(bits, padding...)
+    }
+    bytes := make([]byte, len(bits)/8)
+    for i := 0; i < len(bits); i += 8 {
+        var b byte
+        for j := 0; j < 8; j++ {
+            b |= bits[i+j] << (7 - j)
+        }
+        bytes[i/8] = b
+    }
+    return bytes
+}
 
 const (
     MsgTypeData byte = 0x01
@@ -32,3 +63,21 @@ func BuildFrame(payload []byte) ([]byte, error) {
     fullFrame := append(frame, crcBytes...)
     return fullFrame, nil
 }
+
+func BuildFrameWithHamming(payload []byte) ([]byte, error) {
+    // 1) convertir payload en slice de bits (0/1)
+    bits := BytesToBits(payload)
+    // 2) codificar con Hamming
+    codeBits, err := Hamming74Encode(bits)
+    if err != nil {
+        return nil, err
+    }
+    // 3) convertir bits de vuelta a bytes (agrupando de 8)
+    codedBytes := BitsToBytes(codeBits)
+    // 4) llamar a BuildFrame(codedBytes) para añadir header+CRC
+    return BuildFrame(codedBytes)
+}
+
+
+
+
