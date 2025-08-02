@@ -2,21 +2,31 @@ package frame
 
 import (
     "testing"
+		"encoding/binary"
+		"hash/crc32"
 )
 
-func TestBuildFrame_NoError(t *testing.T) {
-    data := []byte{0x01, 0x02, 0x03}
+func TestBuildFrame_CRCAndHeader(t *testing.T) {
+    data := []byte{0x0A, 0x0B}
     frame, err := BuildFrame(data)
     if err != nil {
-        t.Fatalf("BuildFrame devolvió error: %v", err)
+        t.Fatal(err)
     }
-    // Por ahora, como stub, debe devolver exactamente el payload
-    if len(frame) != len(data) {
-        t.Fatalf("Frame esperado longitud %d, obtenido %d", len(data), len(frame))
+    // Longitud: 2 + 2 + 4 = 8
+    if len(frame) != 8 {
+        t.Fatalf("Longitud esperada 8, obtenida %d", len(frame))
     }
-    for i := range data {
-        if frame[i] != data[i] {
-            t.Fatalf("Byte en posición %d: esperado 0x%02x, hubo 0x%02x", i, data[i], frame[i])
-        }
+    // Header
+    if frame[0] != MsgTypeData {
+        t.Errorf("Byte 0 header: esperado %02x, tuvo %02x", MsgTypeData, frame[0])
+    }
+    if frame[1] != byte(len(data)) {
+        t.Errorf("Byte 1 header (longitud): esperado %d, tuvo %d", len(data), frame[1])
+    }
+    // CRC
+    gotCRC := binary.BigEndian.Uint32(frame[len(frame)-4:])
+    wantCRC := crc32.ChecksumIEEE(frame[:len(frame)-4])
+    if gotCRC != wantCRC {
+        t.Errorf("CRC inválido: esperado %08x, obtuvo %08x", wantCRC, gotCRC)
     }
 }
