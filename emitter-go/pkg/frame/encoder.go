@@ -26,15 +26,15 @@ func BitsToBytes(bits []byte) []byte {
         padding := make([]byte, 8-len(bits)%8)
         bits = append(bits, padding...)
     }
-    bytes := make([]byte, len(bits)/8)
+    out := make([]byte, len(bits)/8)
     for i := 0; i < len(bits); i += 8 {
         var b byte
         for j := 0; j < 8; j++ {
             b |= bits[i+j] << (7 - j)
         }
-        bytes[i/8] = b
+        out[i/8] = b
     }
-    return bytes
+    return out
 }
 
 const (
@@ -48,7 +48,9 @@ func BuildFrame(payload []byte) ([]byte, error) {
     }
 
     // 1) Header
-    header := []byte{ MsgTypeData, byte(len(payload)) }
+    header := make([]byte, 3)
+    header[0] = MsgTypeData // Tipo de mensaje
+    binary.BigEndian.PutUint16(header[1:], uint16(len(payload)))
 
     // 2) Concat header + payload
     frame := append(header, payload...)

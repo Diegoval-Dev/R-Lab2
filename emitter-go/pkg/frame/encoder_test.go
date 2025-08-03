@@ -30,3 +30,28 @@ func TestBuildFrame_CRCAndHeader(t *testing.T) {
         t.Errorf("CRC inválido: esperado %08x, obtuvo %08x", wantCRC, gotCRC)
     }
 }
+
+func TestBuildFrameWithHamming_RoundTrip(t *testing.T) {
+    // payload pequeño
+    payload := []byte{0xFF, 0x00}
+    frame, err := BuildFrameWithHamming(payload)
+    if err != nil {
+        t.Fatalf("error inesperado: %v", err)
+    }
+    // Compruebo que BuildFrame (header+CRC) aceptó el código Hamming
+    // Header: tipo + longitud
+    if frame[0] != MsgTypeData {
+        t.Errorf("header tipo: esperado %02x, obtuvo %02x", MsgTypeData, frame[0])
+    }
+    // CRC válido?
+    gotCRC := binary.BigEndian.Uint32(frame[len(frame)-4:])
+    wantCRC := crc32.ChecksumIEEE(frame[:len(frame)-4])
+    if gotCRC != wantCRC {
+        t.Errorf("CRC inválido tras Hamming: %08x vs %08x", wantCRC, gotCRC)
+    }
+    // Y la longitud del header debe coincidir con len(frame)-6 (header+CRC)
+    if int(frame[1]) != len(frame)-6 {
+        t.Errorf("longitud de payload mal codificada: header dice %d, pero body mide %d",
+            frame[1], len(frame)-6)
+    }
+}
