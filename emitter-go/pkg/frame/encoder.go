@@ -43,8 +43,8 @@ const (
 
 // BuildFrame construye: [Header(2)] + Payload + [CRC(4)]
 func BuildFrame(payload []byte) ([]byte, error) {
-    if len(payload) > 255 {
-        return nil, fmt.Errorf("payload demasiado grande: %d bytes (límite 255)", len(payload))
+    if len(payload) > 0xFFFF {
+        return nil, fmt.Errorf("payload demasiado grande: %d bytes (límite 65535)", len(payload))
     }
 
     // 1) Header

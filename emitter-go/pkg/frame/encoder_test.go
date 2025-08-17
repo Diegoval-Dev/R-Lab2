@@ -2,8 +2,8 @@ package frame
 
 import (
     "testing"
-		"encoding/binary"
-		"hash/crc32"
+    "encoding/binary"
+    "hash/crc32"
 )
 
 func TestBuildFrame_CRCAndHeader(t *testing.T) {
@@ -12,16 +12,17 @@ func TestBuildFrame_CRCAndHeader(t *testing.T) {
     if err != nil {
         t.Fatal(err)
     }
-    // Longitud: 2 + 2 + 4 = 8
-    if len(frame) != 8 {
-        t.Fatalf("Longitud esperada 8, obtenida %d", len(frame))
+    // Longitud total: 3 (header) + 2 (payload) + 4 (CRC) = 9
+    if len(frame) != 9 {
+        t.Fatalf("Longitud esperada 9, obtenida %d", len(frame))
     }
     // Header
     if frame[0] != MsgTypeData {
         t.Errorf("Byte 0 header: esperado %02x, tuvo %02x", MsgTypeData, frame[0])
     }
-    if frame[1] != byte(len(data)) {
-        t.Errorf("Byte 1 header (longitud): esperado %d, tuvo %d", len(data), frame[1])
+    plen := binary.BigEndian.Uint16(frame[1:3])
+    if int(plen) != len(data) {
+        t.Errorf("Longitud en header: esperado %d, tuvo %d", len(data), plen)
     }
     // CRC
     gotCRC := binary.BigEndian.Uint32(frame[len(frame)-4:])
@@ -32,26 +33,24 @@ func TestBuildFrame_CRCAndHeader(t *testing.T) {
 }
 
 func TestBuildFrameWithHamming_RoundTrip(t *testing.T) {
-    // payload pequeño
     payload := []byte{0xFF, 0x00}
     frame, err := BuildFrameWithHamming(payload)
     if err != nil {
         t.Fatalf("error inesperado: %v", err)
     }
-    // Compruebo que BuildFrame (header+CRC) aceptó el código Hamming
-    // Header: tipo + longitud
     if frame[0] != MsgTypeData {
         t.Errorf("header tipo: esperado %02x, obtuvo %02x", MsgTypeData, frame[0])
     }
-    // CRC válido?
+    // CRC válido
     gotCRC := binary.BigEndian.Uint32(frame[len(frame)-4:])
     wantCRC := crc32.ChecksumIEEE(frame[:len(frame)-4])
     if gotCRC != wantCRC {
         t.Errorf("CRC inválido tras Hamming: %08x vs %08x", wantCRC, gotCRC)
     }
-    // Y la longitud del header debe coincidir con len(frame)-6 (header+CRC)
-    if int(frame[1]) != len(frame)-6 {
-        t.Errorf("longitud de payload mal codificada: header dice %d, pero body mide %d",
-            frame[1], len(frame)-6)
+    // La longitud del header (uint16 BE) debe coincidir con el body real
+    plen := int(binary.BigEndian.Uint16(frame[1:3]))
+    bodyLen := len(frame) - (3 /*header*/ + 4 /*CRC*/)
+    if plen != bodyLen {
+        t.Errorf("longitud de payload mal codificada: header dice %d, pero body mide %d", plen, bodyLen)
     }
 }
