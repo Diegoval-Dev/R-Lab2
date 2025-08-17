@@ -58,6 +58,9 @@ def main():
         elif args.algo == 'hamming':
             # Modo corrección Hamming
             code_bits = parse_bits_input(args.input)
+            data_bits, corrected_positions = hamming74_decode(code_bits)
+            raw_bits_str = format_bits_output(data_bits)
+            print(f"DATOS (RAW bits): {raw_bits_str} (len={len(data_bits)})")
             
             try:
                 data_bits, corrected_positions = hamming74_decode(code_bits)
@@ -67,6 +70,8 @@ def main():
                     
                 # Convertir bits de datos a mensaje
                 data_bytes = bits_to_bytes(data_bits)
+                if len(data_bits) % 8 != 0:
+                    print(f"(info) Se añadió padding de {8 - (len(data_bits) % 8)} bit(s) para formar 1 byte")
                 
                 # Intentar decodificar como texto
                 try:

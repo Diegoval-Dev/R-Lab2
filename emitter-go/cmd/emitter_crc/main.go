@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
-	"github.com/gerco/r-lab2/pkg/frame"
+	// "github.com/gerco/r-lab2/pkg/frame"
+	"github.com/Diegoval-Dev/R-Lab2/emitter-go/pkg/frame"
 )
 
 func main() {
