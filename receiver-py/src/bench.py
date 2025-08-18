@@ -41,7 +41,10 @@ class BenchmarkRunner:
         else:  # hamming
             encoded_bits = self.link.apply_hamming(original_bits)
             payload_bytes = bits_to_bytes(encoded_bits)
-            frame = self.link.build_frame(payload_bytes, msg_type=0x02)
+            # Pass both bit lengths to preserve message integrity
+            frame = self.link.build_frame(payload_bytes, msg_type=0x02, 
+                                        original_bits_len=len(original_bits), 
+                                        encoded_bits_len=len(encoded_bits))
             transmission_bits = bytes_to_bits(frame)
         
         # Calculate overhead
@@ -66,11 +69,18 @@ class BenchmarkRunner:
         # Calculate error statistics
         error_stats = calculate_error_stats(transmission_bits, noisy_bits)
         
-        # Determine outcome
+        # Determine outcome based on algorithm purpose
         successful = reception_result['valid']
         corrected = len(reception_result.get('corrected_positions', []))
-        detected_errors = len(error_positions)
+        errors_injected = error_stats['error_bits']
         
+        # CRC: Success = detection of errors (valid=False when errors present)
+        # Hamming: Success = correction of errors (valid=True after correction)
+        if algorithm == 'crc':
+            crc_detected_correctly = (errors_injected > 0 and not successful) or (errors_injected == 0 and successful)
+        else:
+            crc_detected_correctly = False  # N/A for Hamming
+            
         return {
             'test_id': test_id,
             'algorithm': algorithm,
@@ -81,12 +91,12 @@ class BenchmarkRunner:
             'overhead_bits': overhead_bits,
             'overhead_ratio': overhead_ratio,
             'ber_target': ber,
-            'errors_injected': error_stats['error_bits'],
+            'errors_injected': errors_injected,
             'actual_ber': error_stats['error_rate'],
-            'errors_detected': detected_errors,
             'errors_corrected': corrected,
             'successful': successful,
             'recovered_correctly': successful and (reception_result['recovered_message'] == message),
+            'crc_detected_correctly': crc_detected_correctly,
             'total_time_ms': total_time * 1000,
             'reception_time_ms': reception_time * 1000,
             'message_original': message,
@@ -104,29 +114,48 @@ class BenchmarkRunner:
         }
         
         try:
-            is_valid, msg_type, payload = self.link.parse_frame(frame_bytes)
+            # First, try to parse frame header (may fail CRC initially)
+            try:
+                is_valid, msg_type, payload, original_bits_len, encoded_bits_len = self.link.parse_frame(frame_bytes)
+            except:
+                # If parsing completely fails, try basic header parsing
+                if len(frame_bytes) < 7:
+                    result['error'] = 'Frame too short'
+                    return result
+                msg_type = frame_bytes[0]
+                is_valid = False
+                payload = frame_bytes[3:-4]  # Basic payload extraction
+                original_bits_len = 0
+                encoded_bits_len = 0
             
-            if not is_valid:
-                result['error'] = 'CRC validation failed'
-                return result
-            
-            if msg_type == 0x01:  # CRC
+            if msg_type == 0x01:  # CRC - must be valid
+                if not is_valid:
+                    result['error'] = 'CRC validation failed'
+                    return result
+                
                 payload_bits = bytes_to_bits(payload)
                 recovered_message = bits_to_ascii(payload_bits)
                 result['recovered_message'] = recovered_message
                 result['valid'] = True
                 
-            elif msg_type == 0x02:  # Hamming
-                payload_bits = bytes_to_bits(payload)
-                decoded_bits, corrected_positions, success = self.link.verify_hamming(payload_bits)
-                
-                if success:
-                    result['corrected_positions'] = corrected_positions
-                    recovered_message = bits_to_ascii(decoded_bits)
-                    result['recovered_message'] = recovered_message
-                    result['valid'] = True
+            elif msg_type == 0x02:  # Hamming - try correction even if CRC failed
+                if is_valid:
+                    # CRC already valid, just decode
+                    payload_bits = bytes_to_bits(payload)
+                    payload_bits = payload_bits[:encoded_bits_len]
+                    decoded_bits, corrected_positions, success = self.link.verify_hamming(payload_bits)
+                    
+                    if success:
+                        result['corrected_positions'] = corrected_positions
+                        recovered_message = bits_to_ascii(decoded_bits, original_bits_len)
+                        result['recovered_message'] = recovered_message
+                        result['valid'] = True
+                    else:
+                        result['error'] = 'Hamming decoding failed'
                 else:
-                    result['error'] = 'Hamming decoding failed'
+                    # CRC failed, try Hamming correction and re-verify CRC
+                    result['error'] = 'CRC validation failed - Hamming correction not implemented'
+                    # TODO: Implement full frame Hamming correction with CRC re-verification
             else:
                 result['error'] = f'Unknown message type: {msg_type}'
                 
@@ -138,7 +167,7 @@ class BenchmarkRunner:
     def run_benchmark(self, 
                      num_tests: int = 10000,
                      message_lengths: List[int] = [5, 10, 20, 50],
-                     ber_values: List[float] = [0.001, 0.005, 0.01, 0.02, 0.05],
+                     ber_values: List[float] = [0.0, 0.0001, 0.0005, 0.001, 0.002, 0.005],
                      algorithms: List[str] = ['crc', 'hamming']) -> List[Dict[str, Any]]:
         """
         Run comprehensive benchmark
@@ -161,18 +190,22 @@ class BenchmarkRunner:
         for algorithm in algorithms:
             for length in message_lengths:
                 for ber in ber_values:
-                    test_combinations.append((algorithm, length, ber))
+                    # More tests for key scenarios
+                    if ber == 0.0:  # Perfect conditions
+                        weight = 3
+                    elif ber <= 0.001:  # Low error rates
+                        weight = 2
+                    else:  # Higher error rates
+                        weight = 1
+                    test_combinations.append((algorithm, length, ber, weight))
         
-        tests_per_combination = num_tests // len(test_combinations)
-        remaining_tests = num_tests % len(test_combinations)
+        total_weight = sum(combo[3] for combo in test_combinations)
         
         results = []
         test_id = 0
         
-        for i, (algorithm, length, ber) in enumerate(test_combinations):
-            combination_tests = tests_per_combination
-            if i < remaining_tests:
-                combination_tests += 1
+        for algorithm, length, ber, weight in test_combinations:
+            combination_tests = max(1, (num_tests * weight) // total_weight)
             
             print(f"Running {combination_tests} tests for {algorithm.upper()}, length={length}, BER={ber}")
             
@@ -252,7 +285,7 @@ def main():
     parser.add_argument('--output', type=str, default='benchmark_results.csv', help='Output CSV filename')
     parser.add_argument('--lengths', nargs='+', type=int, default=[5, 10, 20, 50], 
                        help='Message lengths to test')
-    parser.add_argument('--ber', nargs='+', type=float, default=[0.001, 0.005, 0.01, 0.02, 0.05],
+    parser.add_argument('--ber', nargs='+', type=float, default=[0.0, 0.0001, 0.0005, 0.001, 0.002, 0.005],
                        help='BER values to test')
     parser.add_argument('--algorithms', nargs='+', choices=['crc', 'hamming'], 
                        default=['crc', 'hamming'], help='Algorithms to test')

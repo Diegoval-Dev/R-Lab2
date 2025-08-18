@@ -130,7 +130,7 @@ class LayeredReceiver:
                 if algorithm_type == "crc":
                     # RAW + CRC: verificación estándar
                     result.algorithm = "crc"
-                    is_crc_valid, msg_type, payload = self.link_layer.parse_frame(frame_bytes)
+                    is_crc_valid, msg_type, payload, original_bits_len, encoded_bits_len = self.link_layer.parse_frame(frame_bytes)
                     
                     if not is_crc_valid:
                         result.error_message = "CRC validation failed"
@@ -160,7 +160,7 @@ class LayeredReceiver:
                         return result
                     
                     # Verificar CRC del frame corregido
-                    is_crc_valid, msg_type, payload = self.link_layer.parse_frame(corrected_frame)
+                    is_crc_valid, msg_type, payload, original_bits_len, encoded_bits_len = self.link_layer.parse_frame(corrected_frame)
                     
                     if not is_crc_valid:
                         result.error_message = "CRC validation failed after Hamming correction"

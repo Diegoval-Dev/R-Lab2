@@ -100,19 +100,30 @@ class LinkLayer:
             return [], [], False
     
     @staticmethod
-    def build_frame(payload: bytes, msg_type: int = 0x01) -> bytes:
+    def build_frame(payload: bytes, msg_type: int = 0x01, original_bits_len: int = None, encoded_bits_len: int = None) -> bytes:
         """
         Builds a frame with header + payload + CRC.
         
         Args:
             payload: Payload data
             msg_type: Message type (0x01 = RAW+CRC, 0x02 = HAMMING+CRC)
+            original_bits_len: Original bit length before Hamming encoding (for msg_type=0x02)
+            encoded_bits_len: Hamming encoded bit length before byte conversion (for msg_type=0x02)
             
         Returns:
             Complete frame bytes
         """
         # Build header: type (1 byte) + length (2 bytes, big-endian)
         header = bytes([msg_type]) + len(payload).to_bytes(2, 'big')
+        
+        # For Hamming messages, add subheader with bit lengths
+        if msg_type == 0x02:
+            if original_bits_len is not None and encoded_bits_len is not None:
+                # Add 2 bytes for original bit length + 2 bytes for encoded bit length
+                subheader = original_bits_len.to_bytes(2, 'big') + encoded_bits_len.to_bytes(2, 'big')
+                header += subheader
+            else:
+                raise ValueError("For Hamming frames, both original_bits_len and encoded_bits_len are required")
         
         # Combine header + payload
         data = header + payload
@@ -123,7 +134,7 @@ class LinkLayer:
         return frame
     
     @staticmethod
-    def parse_frame(frame: bytes) -> Tuple[bool, int, bytes]:
+    def parse_frame(frame: bytes) -> Tuple[bool, int, bytes, int, int]:
         """
         Parses a received frame and validates CRC.
         
@@ -131,23 +142,38 @@ class LinkLayer:
             frame: Complete frame bytes
             
         Returns:
-            Tuple of (is_valid, msg_type, payload)
+            Tuple of (is_valid, msg_type, payload, original_bits_len, encoded_bits_len)
+            For msg_type=0x01: original_bits_len=0, encoded_bits_len=0
+            For msg_type=0x02: actual lengths
         """
         if len(frame) < 7:  # Minimum: 3 header + 0 payload + 4 CRC
-            return False, 0, b''
+            return False, 0, b'', 0, 0
         
         # Verify CRC and extract data part
         is_valid, data_part = LinkLayer.verify_crc(frame)
         if not is_valid:
-            return False, 0, b''
+            return False, 0, b'', 0, 0
         
-        # Parse header
+        # Parse basic header
         msg_type = data_part[0]
         payload_length = int.from_bytes(data_part[1:3], 'big')
-        payload = data_part[3:]
+        
+        original_bits_len = 0
+        encoded_bits_len = 0
+        header_size = 3
+        
+        # For Hamming messages, parse extended subheader
+        if msg_type == 0x02:
+            if len(data_part) < 7:  # Need at least 7 bytes for extended header (3 + 2 + 2)
+                return False, msg_type, b'', 0, 0
+            original_bits_len = int.from_bytes(data_part[3:5], 'big')
+            encoded_bits_len = int.from_bytes(data_part[5:7], 'big')
+            header_size = 7
+            
+        payload = data_part[header_size:]
         
         # Verify payload length matches header
         if len(payload) != payload_length:
-            return False, msg_type, payload
+            return False, msg_type, payload, original_bits_len, encoded_bits_len
         
-        return True, msg_type, payload
+        return True, msg_type, payload, original_bits_len, encoded_bits_len

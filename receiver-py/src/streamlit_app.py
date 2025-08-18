@@ -70,7 +70,10 @@ class LabDemo:
             # Hamming: Encode bits, then build frame
             encoded_bits = self.link.apply_hamming(original_bits)
             payload_bytes = bits_to_bytes(encoded_bits)
-            frame = self.link.build_frame(payload_bytes, msg_type=0x02)
+            # Pass both bit lengths to preserve message integrity
+            frame = self.link.build_frame(payload_bytes, msg_type=0x02, 
+                                        original_bits_len=len(original_bits),
+                                        encoded_bits_len=len(encoded_bits))
             transmission_bits = bytes_to_bits(frame)
         
         # Step 3: Noise Layer - Inject errors
@@ -116,7 +119,7 @@ class LabDemo:
         
         try:
             # Parse frame
-            is_valid, msg_type, payload = self.link.parse_frame(frame_bytes)
+            is_valid, msg_type, payload, original_bits_len, encoded_bits_len = self.link.parse_frame(frame_bytes)
             result['msg_type'] = msg_type
             
             if not is_valid:
@@ -133,11 +136,14 @@ class LabDemo:
             elif msg_type == 0x02:  # HAMMING + CRC
                 # Decode Hamming first
                 payload_bits = bytes_to_bits(payload)
+                # Truncate to encoded length to remove padding
+                payload_bits = payload_bits[:encoded_bits_len]
                 decoded_bits, corrected_positions, success = self.link.verify_hamming(payload_bits)
                 
                 if success:
                     result['corrected_positions'] = corrected_positions
-                    recovered_message = bits_to_ascii(decoded_bits)
+                    # Use original length to preserve message integrity
+                    recovered_message = bits_to_ascii(decoded_bits, original_bits_len)
                     result['recovered_message'] = recovered_message
                     result['valid'] = True
                 else:

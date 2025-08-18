@@ -16,15 +16,18 @@ def bits_to_bytes(bits: List[int]) -> bytes:
     if not bits:
         return b''
     
+    # Work with a copy to avoid mutating the input
+    working_bits = bits.copy()
+    
     # Padding si no es multiplo de 8
-    while len(bits) % 8 != 0:
-        bits.append(0)
+    while len(working_bits) % 8 != 0:
+        working_bits.append(0)
     
     result = bytearray()
-    for i in range(0, len(bits), 8):
+    for i in range(0, len(working_bits), 8):
         byte_val = 0
         for j in range(8):
-            byte_val |= bits[i + j] << (7 - j)
+            byte_val |= working_bits[i + j] << (7 - j)
         result.append(byte_val)
     
     return bytes(result)

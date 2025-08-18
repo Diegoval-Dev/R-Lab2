@@ -25,23 +25,29 @@ def ascii_to_bits(text: str) -> List[int]:
     return bits
 
 
-def bits_to_ascii(bits: List[int]) -> str:
+def bits_to_ascii(bits: List[int], original_length: int = None) -> str:
     """
     Converts binary bits back to ASCII text.
     
     Args:
         bits: List of bits (0 or 1)
+        original_length: Original bit length before padding (optional)
         
     Returns:
         ASCII string representation
     """
-    if len(bits) % 8 != 0:
-        # Pad with zeros if not multiple of 8
-        bits = bits + [0] * (8 - len(bits) % 8)
+    # If original length specified, truncate to that length
+    if original_length is not None:
+        bits = bits[:original_length]
+    
+    # Pad only if necessary for byte conversion
+    working_bits = bits[:]
+    if len(working_bits) % 8 != 0:
+        working_bits = working_bits + [0] * (8 - len(working_bits) % 8)
     
     text = ""
-    for i in range(0, len(bits), 8):
-        byte_bits = bits[i:i+8]
+    for i in range(0, len(working_bits), 8):
+        byte_bits = working_bits[i:i+8]
         ascii_val = 0
         for j, bit in enumerate(byte_bits):
             ascii_val |= bit << (7 - j)
