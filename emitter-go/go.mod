@@ -1,5 +1,5 @@
 module github.com/Diegoval-Dev/R-Lab2/emitter-go
 
-go 1.24.5
+go 1.21
 
-require github.com/gorilla/websocket v1.5.3 // indirect
+require github.com/gorilla/websocket v1.5.3

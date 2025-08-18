@@ -38,18 +38,24 @@ func BitsToBytes(bits []byte) []byte {
 }
 
 const (
-    MsgTypeData byte = 0x01
+    MsgTypeData    byte = 0x01  // RAW + CRC
+    MsgTypeHamming byte = 0x02  // HAMMING + CRC
 )
 
-// BuildFrame construye: [Header(2)] + Payload + [CRC(4)]
+// BuildFrame construye: [Header(2)] + Payload + [CRC(4)] con tipo por defecto (RAW)
 func BuildFrame(payload []byte) ([]byte, error) {
+    return BuildFrameWithType(payload, MsgTypeData)
+}
+
+// BuildFrameWithType construye: [Header(2)] + Payload + [CRC(4)] con tipo específico
+func BuildFrameWithType(payload []byte, msgType byte) ([]byte, error) {
     if len(payload) > 0xFFFF {
         return nil, fmt.Errorf("payload demasiado grande: %d bytes (límite 65535)", len(payload))
     }
 
     // 1) Header
     header := make([]byte, 3)
-    header[0] = MsgTypeData // Tipo de mensaje
+    header[0] = msgType // Tipo de mensaje específico
     binary.BigEndian.PutUint16(header[1:], uint16(len(payload)))
 
     // 2) Concat header + payload
@@ -76,8 +82,8 @@ func BuildFrameWithHamming(payload []byte) ([]byte, error) {
     }
     // 3) convertir bits de vuelta a bytes (agrupando de 8)
     codedBytes := BitsToBytes(codeBits)
-    // 4) llamar a BuildFrame(codedBytes) para añadir header+CRC
-    return BuildFrame(codedBytes)
+    // 4) llamar a BuildFrameWithType con tipo Hamming (0x02)
+    return BuildFrameWithType(codedBytes, MsgTypeHamming)
 }
 
 
